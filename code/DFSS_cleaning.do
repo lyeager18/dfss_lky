@@ -3,12 +3,12 @@
 * Project: DFSS analysis cleaning 
 * Created on: apr 2026
 * Created by: lky
-* Edited on: 3 apr 2026
+* Edited on: 7 apr 2026
 * Edited by: lky
 * Stata v.19
 
 * does
-	* acleaning and relabeling of DFSS survey data 
+	* cleaning and relabeling of DFSS survey data to use in analysis
 
 * assumes
 	* access to all data and code
@@ -16,6 +16,9 @@
 
 * TO DO:
 	* ALL OF IT ...
+	* ask anna questions and finish any cleaning 
+	
+* NOTES:
 	
 ******************************************************************
 **# 0 - setup
@@ -37,12 +40,6 @@
 * importing the cleaned dataset
 
 	use 			"$data/dfss_both_final 2", clear
-	
-******************************************************************	
-**# 2 - identifying and naming core variables 
-******************************************************************
-
-* destringing and handling missing data 
 
 ******************************************************************
 **# 2 - renaming (survey q# to variable) by section 
@@ -144,7 +141,7 @@
 	rename 			q161_9 dworry9_1
 	rename 			q161_10 dworry10_1
 	rename 			q161_11 dworry11_1
-	rename 			q161_12 dowrry12_1
+	rename 			q161_12 dworry12_1
 	rename 			q161_13 dworry13_1
 	rename 			q161_14 dworry_other_1
 	rename 			q161_14_text dworry_othert_1 
@@ -233,7 +230,7 @@
 	rename 			q211_5 dplaces_grocerydel_1
 	rename 			q211_6 dplaces_mealkit_1
 	rename 			q211_7 dplaces_mealdel_1
-	rename 			q211_8 dpalces_rest_1
+	rename 			q211_8 dplaces_rest_1
 	rename 			q211_9 dplaces_group_1
 	rename 			q211_10 dplaces_dine_1
 	rename 			q211_11 dplaces_snap_1
@@ -252,7 +249,7 @@
 	rename 			q212_5 dplaces_grocerydel_2
 	rename 			q212_6 dplaces_mealkit_2
 	rename 			q212_7 dplaces_mealdel_2
-	rename 			q212_8 dpalces_rest_2
+	rename 			q212_8 dplaces_rest_2
 	rename 			q212_9 dplaces_group_2
 	rename 			q212_10 dplaces_dine_2
 	rename 			q212_11 dplaces_snap_2
@@ -271,7 +268,7 @@
 	rename 			q213_5 dplaces_grocerydel_3
 	rename 			q213_6 dplaces_mealkit_3
 	rename 			q213_7 dplaces_mealdel_3
-	rename 			q213_8 dpalces_rest_3
+	rename 			q213_8 dplaces_rest_3
 	rename 			q213_9 dplaces_group_3
 	rename 			q213_10 dplaces_dine_3
 	rename 			q213_11 dplaces_snap_3
@@ -372,43 +369,79 @@
 	recode 			dependents (1=0) (2=1) (3=2) (4=3) (5=4) (6=5)
 	
 **# cleaning
-	
 	replace 		hh_children = "0" if inlist(hh_children, "O", "none", "p0")
-	destring 		hh_children, replace
-	
+	destring 		hh_children, replace /* converting the text variable into a numeric variable */
     gen 			hh_children_clean = hh_children
 
 * verify the result
 	tabulate 		hh_children_clean
 	rename 			hh_children_clean hh_children
 	
-* changing the text typos to "0"
-	replace 		hh_sac = "0" if inlist(hh_sac, "O", "P", "none")
-
-* changing the ages to count of "1" *** is this appropriate ***
-	replace 		hh_sac = "1" if inlist(hh_sac, "13", "14", "16")
-
-* converting the text variable into a numeric variable
+	replace 		hh_sac = "0" if inlist(hh_sac, "O", "P", "none") 
+	replace 		hh_sac = "1" if inlist(hh_sac, "13", "14", "16") /* changing the ages to count of "1" */
+	*** ASK ANNA - is this appropriate ***
 	destring 		hh_sac, replace
-
-* confirming the results
 	tabulate 		hh_sac
 	
 	replace 		hh_young = "0" if inlist(hh_young, "0", "P", "none", "None", "o")
-	
-	*** how do i account for the 2 response ***
-	
+	*** ASK ANNA - how do i account for the 2 response ***
 	destring 		hh_young, replace /* can't destring yet */
+	tabulate 		hh_young
 	
-	*** need to repeat this for hh_adult and hh_elderly ***
+	replace 		hh_adult = "0" if inlist(hh_adult, "O")
+	*** ASK ANNA - how do i account for the other silly responses? ***
+	destring 		hh_adult, replace /* can't destring yet */
+	
+	replace 		hh_elderly = "0" if inlist(hh_elderly, "N/A", "None", "none", ///
+					"o", "O")
+	*** ASK ANNA - how do i account for the other silly responses? ***
+	destring 		hh_elderly, replace /* can't destring yet */
 	
 ******************************************************************
 **# 5 - preparing controls for analysis 
 ******************************************************************
 	
-* saving 
+**# wealth proxies
+	lab def 		income_lbl 1 "< $25,000" 2 "$25,000 - $49,999" 3 "$50,000 - $74,999" ///
+					4 "$75,000 - $100,000" 5 "> $100,000"	
+	lab val 		income24 income_lbl
+	lab var 		income24 "Annual Household Income (Binned)"
+	
+	gen 			nutrition_snap = strpos(nutrition, "1") > 0 
+	gen 			nutrition_wic = strpos(nutrition, "2") > 0
+	*** ASK ANNA - how to account for snap in different periods? ***
+	*** ASK ANNA - using the housing variable rent, mortgage, utility bills ***
+	
+**# demographics 
+	recode 			disability (2=0) (1=1)
+	recode 			hispanic (2=0) (1=1) /* what else goes into race */
+	*** ASK ANNA - use ethnicity variable instead and gen as minority ***
+	recode 			us_born (2=0) (1=1)
+	
+	destring 		employment, replace force
+	lab def 		employment_lbl 1 "Full time" 2 "Part time" 3 "Unemployed" ///
+					4 "Retired" 5 "Student" 6 "Homemaker" 7 "Disabled, not able to work" ///
+					8 "other"
+	lab val			employment employment_lbl
+	lab var 		employment "Employment Status"
 
-	save 			"$data/dfss_both_final 2", replace
+**# fixed effects 
+	
+	lab def 		disaster_lbl 1 "Avalanche" 2 "Coastal flooding" 3 "Cold wave" ///
+					4 "Drought" 5 "Earthquake" 6 "Hail" 7 "Heat wave" ///
+					8 "Hurricane" 9 "Ice storm" 10 "Landslide" 11 "Lightening" ///
+					12 "Riverine flooding" 13 "Strong wind" 14 "Tornado" ///
+					15 "Tsunami" 16 "Volcanic activity" 17 "Wildfire" ///
+					18 "Winter weather"
+	lab val 		disaster_type disaster_lbl
+	lab var 		disaster_type "Type of Disaster Experienced"
+	
+	*** ASK ANNA - what variable should I be using for location? ***
+
+	
+**# saving 
+
+	save 			"$data/dfss_both_analysis_ready", replace
 	
 *** END *** 
 	

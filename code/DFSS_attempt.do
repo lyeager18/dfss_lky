@@ -3,7 +3,7 @@
 * Project: DFSS validation 
 * Created on: march 2026
 * Created by: lky
-* Edited on: 3 apr 2026
+* Edited on: 6 apr 2026
 * Edited by: lky
 * Stata v.19
 
@@ -23,7 +23,7 @@
 	* how to implement these for probit model?
 	* predict the change in food stress (delta method?)
 	* omitted variable bias
-	* account for different locations i.state
+	* autocorrelation using newey-west 
 	
 ******************************************************************
 **# 0 - setup
@@ -39,12 +39,13 @@
     version         $stataVersion
 
 ******************************************************************
-**# 1 - loading cleaned survey data 
+**# 1 - loading analysis ready data
 ******************************************************************
 
 * importing the cleaned, named, and labeled dataset
 
 	use 			"$data/dfss_both_final 2", clear
+	*use 			"$data/dfss_both_analysis_ready", clear
 	
 ******************************************************************	
 **# 2 - creating dependent variable (dfss_score) 
@@ -52,7 +53,7 @@
 
 * 15 variables going into the dfss score 
 * only want the significant answers of sometimes true and often true 
-* accounting for before and during the disaster (to idenfity initial food insecurity)
+* accounting for before and during the disaster (to identify initial food insecurity)
 
 *** before ***
 	foreach var in 	supply selection kinds quality safe transport barriers ///
@@ -78,7 +79,7 @@
 	
 	gen 			dfss_shock = score_during - score_before 
 	
-	tab 			dfss_shock /* 591 hh experienced an increase in food stress, 205 reported lower food stress */
+	tab 			dfss_shock /* 591 hhs experienced an increase in food stress, 205 reported lower food stress */
 	histogram 		dfss_shock
 	
 	
@@ -101,7 +102,7 @@
 	
 * creating dependency ratio
 	
-	gen 			dep_ratio = (num_children + num_elderly) / num_adults
+	gen 			dep_ratio = (num_children + num_elderly) / num_adults if num_adults > 0
 
 ************************************************************************
 ** 4 - models 
