@@ -3,7 +3,7 @@
 * Project: DFSS analysis cleaning 
 * Created on: apr 2026
 * Created by: lky
-* Edited on: 7 apr 2026
+* Edited on: 14 apr 2026
 * Edited by: lky
 * Stata v.19
 
@@ -12,11 +12,9 @@
 
 * assumes
 	* access to all data and code
-	* ... 
 
 * TO DO:
-	* ALL OF IT ...
-	* ask anna questions and finish any cleaning 
+	* create safety net gap
 	
 * NOTES:
 	
@@ -44,10 +42,9 @@
 ******************************************************************
 **# 2 - renaming (survey q# to variable) by section 
 ******************************************************************
-
+/*
 **# consent 
 
-	rename 			q2 eligibility 
 	rename 			q3 consent 
 	
 **# screening 
@@ -359,7 +356,7 @@
 * confirming that variables have been recoded 
 
 	tab1 disasterfs_*, m /* looked at data editor and think i did this correctly */
-	
+	*/
 ******************************************************************
 **# 4 - preparing independent variables for analysis 
 ******************************************************************	
@@ -369,33 +366,34 @@
 	recode 			dependents (1=0) (2=1) (3=2) (4=3) (5=4) (6=5)
 	
 **# cleaning
-	replace 		hh_children = "0" if inlist(hh_children, "O", "none", "p0")
+	*replace 		hh_children = "0" if inlist(hh_children, "O", "none", "p0")
 	destring 		hh_children, replace /* converting the text variable into a numeric variable */
-    gen 			hh_children_clean = hh_children
-
-* verify the result
-	tabulate 		hh_children_clean
-	rename 			hh_children_clean hh_children
 	
-	replace 		hh_sac = "0" if inlist(hh_sac, "O", "P", "none") 
-	replace 		hh_sac = "1" if inlist(hh_sac, "13", "14", "16") /* changing the ages to count of "1" */
-	*** ASK ANNA - is this appropriate ***
+	*replace 		hh_sac = "0" if inlist(hh_sac, "O", "P", "none") 
+	*replace 		hh_sac = "1" if inlist(hh_sac, "13", "14", "16") /* changing the ages to count of "1" */
 	destring 		hh_sac, replace
-	tabulate 		hh_sac
+	tab				hh_sac
 	
-	replace 		hh_young = "0" if inlist(hh_young, "0", "P", "none", "None", "o")
-	*** ASK ANNA - how do i account for the 2 response ***
-	destring 		hh_young, replace /* can't destring yet */
-	tabulate 		hh_young
+	replace 		hh_young = "0" if inlist(hh_young, "O")
+	replace 		hh_young = "1" if inlist(hh_young, "18", "20", "22", "23")
+	replace 		hh_young = "2" if inlist(hh_young, "2 (son 16, daughter 10)")
+	replace 		hh_young = "" if hh_young == "40"
+	destring 		hh_young, replace 
+	tab				hh_young
 	
-	replace 		hh_adult = "0" if inlist(hh_adult, "O")
-	*** ASK ANNA - how do i account for the other silly responses? ***
-	destring 		hh_adult, replace /* can't destring yet */
+	replace 		hh_adult = "0" if inlist(hh_adult, "O") 
+	replace 		hh_adult = "1" if inlist(hh_adult, "25", "29", "30", "31", ///
+					"40", "41", "47", "50", "52")
+	replace 		hh_adult = "2" if inlist(hh_adult, "2 (myself 47, wife 45)", ///
+					"55 53", "Sister me")
+	destring 		hh_adult, replace 
 	
 	replace 		hh_elderly = "0" if inlist(hh_elderly, "N/A", "None", "none", ///
 					"o", "O")
-	*** ASK ANNA - how do i account for the other silly responses? ***
-	destring 		hh_elderly, replace /* can't destring yet */
+	replace 		hh_elderly = "1" if inlist(hh_elderly, "Mom ", "1 we", "40", ///
+					"50", "65", "70", "78")
+	replace 		hh_elderly = "" if strpos(hh_elderly, "I") > 0 /*using strpos to locate any substrings */
+	destring 		hh_elderly, replace 
 	
 ******************************************************************
 **# 5 - preparing controls for analysis 
@@ -409,24 +407,39 @@
 	
 	gen 			nutrition_snap = strpos(nutrition, "1") > 0 
 	gen 			nutrition_wic = strpos(nutrition, "2") > 0
-	*** ASK ANNA - how to account for snap in different periods? ***
-	*** ASK ANNA - using the housing variable rent, mortgage, utility bills ***
+	
+	*** need to include the "safety net gap" ***
+	
+	gen 			housing_status = .
+	replace 		housing_status = 1 if strpos(housing, "1") > 0
+	replace 		housing_status = 2 if strpos(housing, "2") > 0
+	replace 		housing_status = 3 if strpos(housing, "3") > 0 & strpos(housing, "1") == 0 & strpos(housing, "2") == 0 
+	lab def 		housing_cat 1 "Renter" 2 "Mortgage" 3 "Outright Owner"
+	lab val 		housing_status housing_cat
+	lab var 		housing_status "Home Ownership Status"
 	
 **# demographics 
 	recode 			disability (2=0) (1=1)
-	recode 			hispanic (2=0) (1=1) /* what else goes into race */
-	*** ASK ANNA - use ethnicity variable instead and gen as minority ***
+	recode 			hispanic (2=0) (1=1) 
 	recode 			us_born (2=0) (1=1)
 	
-	destring 		employment, replace force
+	gen				non_white = .
+	replace 		non_white = 0 if ethnicity == "5" /* only white */
+	replace 		non_white = 1 if ethnicity != "5" & ethnicity != "" /* multi-racial */
+	lab var 		non_white "Race/Ethnicity (1= Non-White/Multiracial)"
+	lab def 		nw_lbl 1 "Non-white" 0 "Only White"
+	lab val 		non_white nw_lbl
+	
+	destring 		employment, replace 
 	lab def 		employment_lbl 1 "Full time" 2 "Part time" 3 "Unemployed" ///
 					4 "Retired" 5 "Student" 6 "Homemaker" 7 "Disabled, not able to work" ///
 					8 "other"
 	lab val			employment employment_lbl
 	lab var 		employment "Employment Status"
 
-**# fixed effects 
-	
+**# fixed effects / robustness controls (to isolate the true impact of household composition on food vulnerability)
+
+*** breaking up disasters and spreading them out so one doesn't run the show ***
 	lab def 		disaster_lbl 1 "Avalanche" 2 "Coastal flooding" 3 "Cold wave" ///
 					4 "Drought" 5 "Earthquake" 6 "Hail" 7 "Heat wave" ///
 					8 "Hurricane" 9 "Ice storm" 10 "Landslide" 11 "Lightening" ///
@@ -436,9 +449,53 @@
 	lab val 		disaster_type disaster_lbl
 	lab var 		disaster_type "Type of Disaster Experienced"
 	
-	*** ASK ANNA - what variable should I be using for location? ***
-
+	gen 			disaster_cat = .
+* water 
+	replace 		disaster_cat = 1 if inlist(disaster_type, 2, 8, 12, 15)
+* wind/storm
+	replace 		disaster_cat = 2 if inlist(disaster_type, 6, 11, 13, 14)
+* heat/fire/cold
+	replace 		disaster_cat = 3 if inlist(disaster_type, 1, 3, 4, 7, 9, 17, 18)
+*geological 
+	replace 		disaster_cat = 4 if inlist(disaster_type, 5, 10, 16)
 	
+	lab def 		disaster_event_lbl 1 "Water Event" 2 "Wind/Storm Event" ///
+					3 "Heat/Fire/Cold Event" 4 "Geologic Event"
+	lab val 		disaster_cat disaster_event_lbl
+	
+	lab def			state_lbl 5 "Alabama" 6 "Alaska" 7 "Arizona" 8 "Arkansas" ///
+					9 "California" 10 "Colorado" 11 "Connecticut" 12 "Delaware" ///
+					13 "Florida" 14 "Georgia" 15 "Hawaii" 16 "Idaho" 17 "Illinois" ///
+					52 "Indiana" 18 "Iowa" 19 "Kansas" 20 "Kentucky" 21 "Louisiana" ///
+					22 "Maine" 23 "Maryland" 24 "Massachusetts" 25 "Michigan" ///
+					26 "Minnesota" 27 "Mississippi" 28 "Missouri" 29 "Montana" ///
+					53 "Nebraska" 30 "Nevada" 31 "New Hampshire" 32 "New Jersey" ///
+					33 "New Mexico" 34 "New York" 35 "North Carolina" ///
+					36 "North Dakota" 37 "Ohio" 38 "Oklahoma" 39 "Oregon" ///
+					40 "Pennsylvania" 54 "Rhode Island" 41 "South Carolina" ///
+					42 "South Dakota" 43 "Tennessee" 44 "Texas" 45 "Utah" 47 "Virginia" ///
+					48 "Washington" 49 "West Virginia" 50 "Wisconsin" 51 "Wyoming"
+					
+	lab val 		state state_lbl
+	capture drop 	region
+	gen 			region = .
+
+*** breaking up states into region to avoid one state bogging down results (i'm looking at you new hampshire) ***
+* northeast region 
+	replace 		region = 1 if inlist(state, 11, 22, 24, 31, 54, 32, 34, 40)
+* midwest
+	replace 		region = 2 if inlist(state, 17, 52, 18, 19, 25, 26, 28, 53, ///
+					36, 37, 42, 50)
+* south 
+	replace 		region = 3 if inlist(state, 5, 8, 12, 13, 14, 20, 21, 23, ///
+					27, 35, 38, 41, 43, 44, 47, 49)
+* west
+	replace 		region = 4 if inlist(state, 6, 7, 9, 10, 15, 16, 29, 30, ///
+					33, 39, 45, 48, 51)
+					
+	lab def 		region_lbl 1 "Northeast" 2 "Midwest" 3 "South" 4 "West"
+	lab val 		region region_lbl
+		
 **# saving 
 
 	save 			"$data/dfss_both_analysis_ready", replace
